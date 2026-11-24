@@ -625,6 +625,27 @@ describe("WorkflowRunsView", () => {
     localStorage.removeItem(KIND_KEY);
   });
 
+  it("opens the run that asks the picked kind, from the row of the run that invoked it", async () => {
+    localStorage.setItem(KIND_KEY, JSON.stringify("feature"));
+    setup({
+      workflows: kindWorkflows,
+      runs: [
+        run({ runId: "epic", title: "Epic", status: "waiting" }),
+        run({ runId: "dark", title: "Dark mode", status: "waiting", parentRunId: "epic" }),
+      ],
+      questions: [asked("epic", "intended"), asked("dark", "feature")],
+    });
+    const select = vi.fn();
+    await using _desktop = await desktop();
+    await using screen = await render(page(null, { select }));
+
+    // Listed for the question the run it invoked asks; its own is of another kind.
+    const runs = screen.getByRole("navigation", { name: "Workflow runs" });
+    await runs.getByRole("button", { name: /Epic/ }).click();
+    expect(select.mock.calls).toEqual([["dark"]]);
+    localStorage.removeItem(KIND_KEY);
+  });
+
   it("still shows a run opened by its link in a list that has it, whatever kind was picked before", async () => {
     localStorage.setItem(KIND_KEY, JSON.stringify("feature"));
     setup({

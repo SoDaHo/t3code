@@ -272,7 +272,10 @@ export function WorkflowRunsView({
     // Once its question is answered the run waits in no list, and the address alone would move
     // the list on to All: a run picked under a kind holds the list here, as picking the kind does.
     if (kind !== EVERY_KIND) setPickedTab("needs-you");
-    onSelect(runId);
+    // A run listed for a question a run it invoked asks opens on that run: its own questions are
+    // of another kind, and would stand with their answers beside the narrowed list.
+    const row = kind === EVERY_KIND ? undefined : listed.find((node) => node.run.runId === runId);
+    onSelect((row === undefined ? null : askingKind([row], kind)?.run.runId) ?? runId);
   };
   const currentRunId = listedFor(shown);
   return (
