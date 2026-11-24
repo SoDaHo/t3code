@@ -201,12 +201,16 @@ export const askedKinds = (source: string): ReadonlyArray<AskedKind> => {
       ? callee.property.name
       : undefined;
   };
+  // What the options hold under a name once they are built: the last one written wins, and a
+  // spread or a worked-out name after it may replace it, so then the source alone does not say.
   const optionOf = (options: Node | undefined, name: string): Node | undefined => {
     if (options?.type !== "ObjectExpression") return undefined;
+    let value: Node | undefined;
     for (const property of options.properties) {
-      if (property.type === "Property" && keyOf(property) === name) return property.value;
+      if (property.type === "SpreadElement" || property.computed) value = undefined;
+      else if (keyOf(property) === name) value = property.value;
     }
-    return undefined;
+    return value;
   };
   const found: Array<AskedKind & { readonly at: number }> = [];
   const left: Array<{ readonly node: Node; readonly workflow: WorkflowCall | undefined }> = [

@@ -33,6 +33,18 @@ T3.workflow(\`other\`, { version: VERSION, payload: Schema.Struct({}) }, () =>
   );
 });
 
+it("reads the kind the options end up with, and none where a later part may replace it", () => {
+  const kinds = (options: string) =>
+    askedKinds(`T3.ask("decide", ${options});`).map((asked) => asked.kind);
+  // A spread after the kind may carry its own, so the source alone does not say which is asked.
+  assert.deepStrictEqual(kinds('{ kind: "fallback", ...question }'), []);
+  assert.deepStrictEqual(kinds('{ kind: "fallback", [name]: "other" }'), []);
+  // Nothing written after these can replace them.
+  assert.deepStrictEqual(kinds('{ ...question, kind: "last" }'), ["last"]);
+  assert.deepStrictEqual(kinds('{ kind: "first", ...question, kind: "last" }'), ["last"]);
+  assert.deepStrictEqual(kinds('{ kind: "first", kind: "last" }'), ["last"]);
+});
+
 it("reads the file's syntax, so only a call of T3's own ask is an ask", () => {
   const kinds = (source: string) => askedKinds(source).map((asked) => asked.kind);
   assert.deepStrictEqual(
