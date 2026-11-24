@@ -237,17 +237,43 @@ export function WorkflowRunsView({
       : [];
   const kindLabel = (candidate: (typeof kinds)[number]) =>
     candidate.label ?? gt("Other", { $context: "workflow questions that have no kind" });
+  // The first run among these that itself asks a question of the kind.
+  const askingKind = (nodes: ReadonlyArray<WorkflowRunNode>, asked: string) =>
+    allWorkflowRunNodes({ needsYou: nodes, workflows: [] }).find((node) =>
+      node.questions.some((question) => (question.kind ?? WORKFLOW_OTHER_KIND) === asked),
+    ) ?? null;
+  const openRunId = listedFor(selected);
+  // The run that is open stays listed whatever it asks, as one opened by its link may ask
+  // another kind: the list never points at nothing.
   const listed =
-    kind === EVERY_KIND ? ofWorkflow : ofWorkflow.filter((node) => workflowRunAsksKind(node, kind));
+    kind === EVERY_KIND
+      ? ofWorkflow
+      : ofWorkflow.filter(
+          (node) => workflowRunAsksKind(node, kind) || node.run.runId === openRunId,
+        );
   // With no run named, the one shown is one the list has: with a kind picked, one that asks it.
   const shown =
     selectedRunId !== null
       ? selected
       : kind === EVERY_KIND
         ? (all.find((node) => node.run.runId === defaultWorkflowRunId(groups)) ?? null)
-        : (allWorkflowRunNodes({ needsYou: listed, workflows: [] }).find((node) =>
-            node.questions.some((question) => (question.kind ?? WORKFLOW_OTHER_KIND) === kind),
-          ) ?? null);
+        : askingKind(listed, kind);
+  const pickKind = (next: string) => {
+    setPickedKind(next);
+    // Held here, so answering the kind's last question does not move the list on.
+    setPickedTab("needs-you");
+    if (selected === null || next === EVERY_KIND) return;
+    // The open run would keep another kind's question and its answers beside the narrowed list,
+    // so the address moves to a run that asks this kind, or to none.
+    if (askingKind([selected], next)?.run.runId === selected.run.runId) return;
+    onSelect(askingKind(ofWorkflow, next)?.run.runId ?? null);
+  };
+  const openListed = (runId: string | null) => {
+    // Once its question is answered the run waits in no list, and the address alone would move
+    // the list on to All: a run picked under a kind holds the list here, as picking the kind does.
+    if (kind !== EVERY_KIND) setPickedTab("needs-you");
+    onSelect(runId);
+  };
   const currentRunId = listedFor(shown);
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -308,14 +334,7 @@ export function WorkflowRunsView({
               </Select>
             ) : null}
             {kinds.length === 0 ? null : (
-              <Select
-                value={kind}
-                onValueChange={(value) => {
-                  setPickedKind(value ?? EVERY_KIND);
-                  // Held here, so answering the kind's last question does not move the list on.
-                  setPickedTab("needs-you");
-                }}
-              >
+              <Select value={kind} onValueChange={(value) => pickKind(value ?? EVERY_KIND)}>
                 <SelectTrigger
                   size="sm"
                   aria-label={gt("Kind of question", {
@@ -375,7 +394,7 @@ export function WorkflowRunsView({
                       key={node.run.runId}
                       node={node}
                       current={node.run.runId === currentRunId}
-                      onSelect={onSelect}
+                      onSelect={openListed}
                     />
                   ))}
                 </ul>

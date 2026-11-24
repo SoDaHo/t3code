@@ -580,6 +580,51 @@ describe("WorkflowRunsView", () => {
     localStorage.removeItem(KIND_KEY);
   });
 
+  it("moves from an open run that asks another kind to one that asks the picked kind", async () => {
+    localStorage.removeItem(KIND_KEY);
+    kindsAsked();
+    const select = vi.fn();
+    await using _desktop = await desktop();
+    await using screen = await render(page("sticky", { select }));
+
+    await screen.getByRole("combobox", { name: "Kind of question" }).click();
+    await screen.getByRole("option", { name: "Feature wanted? 1" }).click();
+    await vi.waitFor(() => expect(select).toHaveBeenCalledWith("dark"));
+    // Until the address follows, the open run is still in the list, so nothing shown is unlisted.
+    const runs = screen.getByRole("navigation", { name: "Workflow runs" });
+    await expect
+      .element(runs.getByRole("button", { name: /Sticky header/ }))
+      .toHaveAttribute("aria-current", "true");
+    await expect
+      .element(runs.getByRole("button", { name: /Release 1\.4/ }))
+      .not.toBeInTheDocument();
+
+    await screen.rerender(page("dark", { select }));
+    await expect.element(screen.getByRole("heading", { name: "Dark mode" })).toBeVisible();
+    await expect
+      .element(runs.getByRole("button", { name: /Sticky header/ }))
+      .not.toBeInTheDocument();
+    localStorage.removeItem(KIND_KEY);
+  });
+
+  it("keeps a kind remembered from before through answering a run picked from the list", async () => {
+    localStorage.setItem(KIND_KEY, JSON.stringify("feature"));
+    kindsAsked();
+    await using _desktop = await desktop();
+    await using screen = await render(page());
+
+    const runs = screen.getByRole("navigation", { name: "Workflow runs" });
+    await runs.getByRole("button", { name: /Dark mode/ }).click();
+    featureAnswered();
+    await screen.rerender(page("dark"));
+    // The answered run is in no list that waits, and the list does not move on to All for it.
+    await expect.element(runs).toMatchTextContent("No questions of this kind wait on you.");
+    await expect
+      .element(screen.getByRole("combobox", { name: "Kind of question" }))
+      .toMatchTextContent("Feature wanted? 0");
+    localStorage.removeItem(KIND_KEY);
+  });
+
   it("still shows a run opened by its link in a list that has it, whatever kind was picked before", async () => {
     localStorage.setItem(KIND_KEY, JSON.stringify("feature"));
     setup({
