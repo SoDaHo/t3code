@@ -244,6 +244,11 @@ export function WorkflowsScreen() {
     shown === "needs-you"
       ? workflowQuestionKinds(needsYouSources(withRuns.map(({ snapshot }) => snapshot)), kind)
       : [];
+  const pickKind = (next: string | undefined) => {
+    // Held here, so answering the kind's last question does not move the list on.
+    setTab("needs-you");
+    void savePreferences({ workflowQuestionKind: next });
+  };
   return (
     <ScreenScrollView
       contentInsetAdjustmentBehavior="automatic"
@@ -290,7 +295,7 @@ export function WorkflowsScreen() {
               <Chip
                 label={gt("All kinds", { $context: "filter, every kind of workflow question" })}
                 selected={kind === null}
-                onPress={() => void savePreferences({ workflowQuestionKind: undefined })}
+                onPress={() => pickKind(undefined)}
               />
               {kinds.map((candidate) => (
                 <Chip
@@ -300,7 +305,7 @@ export function WorkflowsScreen() {
                     gt("Other", { $context: "workflow questions that have no kind" })
                   } ${candidate.count}`}
                   selected={kind === candidate.kind}
-                  onPress={() => void savePreferences({ workflowQuestionKind: candidate.kind })}
+                  onPress={() => pickKind(candidate.kind)}
                 />
               ))}
             </ScrollView>
