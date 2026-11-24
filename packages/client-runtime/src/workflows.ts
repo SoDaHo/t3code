@@ -246,6 +246,66 @@ export function workflowRunInvolves(node: WorkflowRunNode, workflow: string): bo
   );
 }
 
+/** The filter value for questions asked with no kind. A workflow cannot declare a blank kind. */
+export const WORKFLOW_OTHER_KIND = "";
+
+export interface WorkflowQuestionKind {
+  /** The kind as its workflow names it, or `WORKFLOW_OTHER_KIND`. */
+  readonly kind: string;
+  /** What its workflow calls it. Null for the questions of no kind, which the caller words. */
+  readonly label: string | null;
+  /** How many open questions in these runs are of it. */
+  readonly count: number;
+}
+
+function openQuestions(nodes: ReadonlyArray<WorkflowRunNode>): ReadonlyArray<WorkflowQuestion> {
+  return flattenWorkflowRunNodes(nodes).flatMap((node) => node.questions);
+}
+
+/**
+ * The kinds of the open questions, in declared order, then undeclared kinds, then no kind.
+ * `sources` is one per environment, counted together. `picked` stays listed at zero, so a
+ * filter with nothing left can be undone. Empty when no question has a kind and none is picked.
+ */
+export function workflowQuestionKinds(
+  sources: ReadonlyArray<{
+    readonly workflows: ReadonlyArray<WorkflowSummary>;
+    readonly nodes: ReadonlyArray<WorkflowRunNode>;
+  }>,
+  picked: string | null = null,
+): ReadonlyArray<WorkflowQuestionKind> {
+  const counts = new Map<string, number>();
+  const labels = new Map<string, string>();
+  for (const { workflows, nodes } of sources) {
+    for (const question of openQuestions(nodes)) {
+      const kind = question.kind ?? WORKFLOW_OTHER_KIND;
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+    for (const workflow of workflows) {
+      for (const { kind, label } of workflow.asks ?? []) {
+        if (!labels.has(kind)) labels.set(kind, label);
+      }
+    }
+  }
+  if (picked !== null && !counts.has(picked)) counts.set(picked, 0);
+  const other = counts.get(WORKFLOW_OTHER_KIND);
+  counts.delete(WORKFLOW_OTHER_KIND);
+  if (counts.size === 0 && picked === null) return [];
+  const order = [...new Set([...labels.keys(), ...counts.keys()])];
+  return [
+    ...order.flatMap((kind) => {
+      const count = counts.get(kind);
+      return count === undefined ? [] : [{ kind, label: labels.get(kind) ?? kind, count }];
+    }),
+    ...(other === undefined ? [] : [{ kind: WORKFLOW_OTHER_KIND, label: null, count: other }]),
+  ];
+}
+
+/** Whether a run, or one it invoked, has an open question of this kind. */
+export function workflowRunAsksKind(node: WorkflowRunNode, kind: string): boolean {
+  return openQuestions([node]).some((question) => (question.kind ?? WORKFLOW_OTHER_KIND) === kind);
+}
+
 /** The list to open on: what waits on a person, else what is under way, else everything. */
 export function defaultWorkflowListTab(groups: WorkflowRunGroups): WorkflowListTab {
   if (groups.needsYou.length > 0) return "needs-you";
